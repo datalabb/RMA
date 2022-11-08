@@ -1,0 +1,13 @@
+name: rma_shinyapp
+title: rma_shinyapp
+username:
+account: datalabb
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 7557988
+bundleId: 6488403
+url: https://datalabb.shinyapps.io/rma_shinyapp/
+when: 1667903441.82027
+lastSyncTime: 1667903441.82027
+asMultiple: FALSE
+asStatic: FALSE
