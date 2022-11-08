@@ -80,11 +80,14 @@ library(arules)
 library(arulesViz)
 library(lubridate)
 
+install.packages("datagovindia")
+library(datagovindia)
 
 # 1.0 TABLES ----
 
 ## 1.1. SMART BIRIMLER ----
-smart_birimler_tbl <- readRDS("../sra/00_Data/smart_birimler_saved.rds")
+smart_birimler_tbl <- readRDS("../RMA/Data/smart_birimler_saved.rds")
+
 
 smart_birimler_tbl$Il <- smart_birimler_tbl$Il %>% iconv(to="UTF-8")
 smart_birimler_tbl$Ilce <- smart_birimler_tbl$Ilce %>% iconv(to="UTF-8")
@@ -92,11 +95,11 @@ smart_birimler_tbl$Ilce <- smart_birimler_tbl$Ilce %>% iconv(to="UTF-8")
 smart_birimler_tbl
 
 ## 1.2 LOKASYON ----
-birimler_lokasyon_tbl <- readRDS("../sra/00_Data/birimler_lokasyon_saved.rds")
+birimler_lokasyon_tbl <- readRDS("../RMA/Data/birimler_lokasyon_saved.rds")
 birimler_lokasyon_tbl
 
 ## 1.3 BİLDİRİMLER ----
-bildirim_tbl <- readRDS("../sra/00_Data/bildirim_saved.rds")
+bildirim_tbl <- readRDS("../RMA/Data/bildirim_saved.rds")
 
 str(bildirim_tbl)
 bildirim_tbl <- bildirim_tbl %>% arrange(desc(NotificationTimestamp)) %>% 
@@ -135,7 +138,7 @@ bildirim_loc_tbl_selected <- bildirim_loc_tbl %>%
   
 
 bildirim_loc_tbl_selected
-saveRDS(bildirim_loc_tbl_selected, file = "../sra/00_Data/bildirim_loc_tbl_selected.rds")
+saveRDS(bildirim_loc_tbl_selected, file = "../RMA/Data/bildirim_loc_tbl_selected.rds")
 
 bildirim_loc_tbl_selected_date <- bildirim_loc_tbl_selected %>%
   group_by(Date, Proje) %>%
