@@ -155,7 +155,7 @@ proje_risk_date
 
 risk_loc_tbl_selected <- bildirim_loc_tbl_selected %>%
   filter(RiskGroupName != "Diğer")
-  #filter(RiskGroupName == "Hırsızlık")
+#filter(RiskGroupName == "Hırsızlık")
 risk_loc_tbl_selected
 
 risk_loc_tbl_selected_date <-risk_loc_tbl_selected %>%
@@ -180,7 +180,7 @@ risk_tbl_rate <- risk_tbl %>%
   summarise(OrtRisk = round(mean(RiskOranı), digits = 2)) %>%
   ungroup() %>% 
   mutate(newrate = round(((OrtRisk - min(OrtRisk)) / (max(OrtRisk) - min(OrtRisk)) ) * ((10 - 0) + 0),digits = 1)) 
-  
+
 
 risk_tbl_rate 
 
@@ -264,7 +264,7 @@ smart_birimler_tbl_selected <- smart_birimler_tbl %>%
   rename("MusBirimAd"  = Ad) %>% 
   mutate(AcilisTarihi = as.Date(AcilisTarihi),
          KapanisTarihi = as.Date(KapanisTarihi))
-  
+
 smart_birimler_tbl_selected
 
 
@@ -493,11 +493,11 @@ map_tbl <- bildirim_loc_tbl_selected %>%
 
 str(map_tbl)
 
-  
+
 birim_map <- leaflet() %>% 
-    addTiles() %>% 
-    addCircleMarkers(data = map_tbl, lng = map_tbl$Boylam, lat = map_tbl$Enlem, radius = 2)
-  
+  addTiles() %>% 
+  addCircleMarkers(data = map_tbl, lng = map_tbl$Boylam, lat = map_tbl$Enlem, radius = 2)
+
 birim_map
 
 
