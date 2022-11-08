@@ -66,7 +66,7 @@ ui <- fluidPage(
   # JS ----
   shinyjs::useShinyjs(), # Include shinyjs
   
-  #shinythemes::themeSelector(),
+  shinythemes::themeSelector(),
   
   
   
@@ -232,8 +232,9 @@ server <- function(input, output, session) {
   
   # Extract mlid/param level assessments
   mlid_param_asmnts=map_tbl$Birim
-
-
+  
+  # Datalab logo
+  
   # moxbuller = function(n) {   
   #   u = runif(n)   
   #   v = runif(n)   
@@ -252,7 +253,7 @@ server <- function(input, output, session) {
   #   a
   #   
   # })
-  # 
+  
   
   forecastmodebutton <- eventReactive(eventExpr = input$apply, {
     
