@@ -80,8 +80,6 @@ library(arules)
 library(arulesViz)
 library(lubridate)
 
-install.packages("datagovindia")
-library(datagovindia)
 
 # 1.0 TABLES ----
 
@@ -127,14 +125,14 @@ bildirim_loc_tbl$RiskGroupName <- bildirim_loc_tbl$RiskGroupName %>% iconv(to="U
 ## Select/mutate/rename required fields in tables ----
 
 #
+#
 bildirim_loc_tbl_selected <- bildirim_loc_tbl %>%
   select(Bölge, BranchId, Proje, Birim, AxBirimId, Enlem, Boylam, Il, Ilce, Segment,AltSegment, HizmetYeri, NotificationTimestamp,
          TespitEdilenAlan, GroupName, Category, SubCategory, RiskGroupName) %>%
   separate(col = NotificationTimestamp, sep = " ", into = c("Tarih", "Saat"), remove = FALSE) %>%
   select(-NotificationTimestamp) %>%
   mutate(Date = as.Date(Tarih)) %>%
-  filter(GroupName != "Bilgi" ) %>% 
-  filter(Date != "2018-04-06") 
+  filter(GroupName != "Bilgi" ) 
   
 
 bildirim_loc_tbl_selected
