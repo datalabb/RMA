@@ -344,15 +344,59 @@ server <- function(input, output, session) {
   })
   
   
+  # Average Risk Gauge
+  
+  risk_gauge  <- eventReactive(
+    eventExpr = input$risk, 
+    valueExpr = {
+      
+      risk_rate_tbl_last3months <-bildirim_loc_tbl_selected %>% 
+        aggregate_risk_tbl(risk = input$risk, time_unit = "month") %>% 
+        filter(difftime(today(), Date, units = "days") <= 120) %>% 
+        select(-label_text)
+      
+      
+      avrg_risk_rate <- round(mean(risk_rate_tbl_last3months$newrate),digits = 1)
+      
+      avrg_risk_rate
+      
+      
+      fig <- plot_ly(
+        domain = list(x = c(0, 1), y = c(0, 1)),
+        value = avrg_risk_rate,
+        title = list(text = "Risk Katsayısı"),
+        type = "indicator",
+        mode = "gauge+number+delta",
+        #delta = list(reference = 7),
+        gauge = list(
+          axis =list(range = list(NULL, 10)),
+          bar = list(color = "darkred"), 
+          steps = list(
+            list(range = c(0, 5), color = "white"),
+            list(range = c(5, 7), color = "yellow"),
+            list(range = c(7, 8), color = "orange"),
+            list(range = c(8, 10), color = "black")),
+          threshold = list(
+            line = list(color = "red", width = 4),
+            thickness = 0.75,
+            value = 8))) 
+      fig <- fig %>%
+        layout(margin = list(l=20,r=30))
+      
+      }, 
+    ignoreNULL = FALSE 
+  )
+  
+  
   
   
   output$avrgrisk <- renderPlotly({
-    fig
+    risk_gauge()
   })
   
   
   
-  observe({ input$reset
+  observe({input$reset
     
     updatePickerInput(session = session,  
                       inputId = "risk",
