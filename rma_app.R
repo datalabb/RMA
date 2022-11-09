@@ -201,7 +201,7 @@ min(risk_tbl_rate$newrate)
 #3.0 TS VIZ ----
 
 
-aggregate_risk_tbl <- function(bildirim_loc_tbl_selected, risk = "Hırsızlık", time_unit = "week") {
+aggregate_risk_tbl <- function(bildirim_loc_tbl_selected, risk = "Asayiş", time_unit = "week") {
   
   bildirim_loc_tbl_selected_date <- bildirim_loc_tbl_selected %>%
     
@@ -217,12 +217,12 @@ aggregate_risk_tbl <- function(bildirim_loc_tbl_selected, risk = "Hırsızlık",
     mutate(RiskOranı = ToplamRisk/ToplamBildirim)
   
   
-  risk_tbl_rate<- risk_tbl %>%
-    mutate(Date = floor_date(Date, unit = "month")) %>%
+  risk_tbl_rate <- risk_tbl %>%
+    mutate(Date = floor_date(Date, unit = time_unit)) %>%
     group_by(Date) %>%
     summarise(OrtRisk = round(mean(RiskOranı), digits = 2)) %>%
     ungroup() %>% 
-    mutate(newrate = ((risk_tbl_rate$OrtRisk - min(risk_tbl_rate$OrtRisk)) / (max(risk_tbl_rate$OrtRisk) - min(risk_tbl_rate$OrtRisk)) ) * (10 - 0) + 0) %>%
+    mutate(newrate = ((OrtRisk - min(OrtRisk)) / (max(OrtRisk) - min(OrtRisk)) ) * (10 - 0) + 0) %>%
     select(-OrtRisk) %>% 
     mutate(label_text = str_glue("Date: {Date}
                                  Ort. Risk: {newrate}"))
@@ -553,7 +553,7 @@ library(plotly)
 fig <- plot_ly(
   domain = list(x = c(0, 1), y = c(0, 1)),
   value = avrg_risk_rate,
-  title = list(text = "Speed"),
+  title = list(text = "Risk Katsayısı"),
   type = "indicator",
   mode = "gauge+number+delta",
   #delta = list(reference = 7),
