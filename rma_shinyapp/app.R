@@ -70,7 +70,7 @@ ui <- fluidPage(
   
   
   
-  #theme = shinytheme("cyborg"),
+  theme = shinytheme("cyborg"),
   
   navbarPage(
     
@@ -168,6 +168,8 @@ ui <- fluidPage(
                br(),
                br(),
                
+               plotlyOutput("avrgrisk")
+               
                #plotOutput("datalab")
                
                
@@ -180,20 +182,29 @@ ui <- fluidPage(
                            tabPanel("Viz",
                                     column(
                                       width = 8,
-                                      plotlyOutput("plot")
+                                      column(
+                                        width = 12,
+                                        plotlyOutput("plot")
+                                        
+                                      ),
+                                      
+                                      
+                                      column(
+                                        width = 12,
+                                        leafletOutput(outputId = "mapp")
+                                      )
                                       
                                     ),
                                     
                                     column(
                                       width = 4,
-                                      plotlyOutput("avrgrisk")
-                                    ),
-                                    
-                                    column(
-                                      width = 8,
-                                      leafletOutput(outputId = "mapp")
+                                      tags$h4("Son 3 Ay Ortalama Risk Oranı", style="color:white"),
+                                      tags$h6("Risk Oranı için 0-10 arası skala kullanılmıştır", style="color:white"),
+                                      dataTableOutput("riskratetbl")
+
                                     )
                                     
+       
                            ),
                            
                            tabPanel("Table",
@@ -453,6 +464,88 @@ server <- function(input, output, session) {
   })
   
   leafletOutput(outputId = "mapp")
+  
+  
+  # Risk Rate Table
+  
+  
+  detail_table1_gh <- eventReactive(
+    eventExpr = input$branch_selection1,
+    valueExpr = {
+      
+      sube_gh_kapasite_tbl_app <- sube_gh_kapasite_tbl %>% 
+        select(OrgBolgeId, OrgSubeId, Ay, idari_per, saha_per, Toplam_birim_suresi, Toplam_yol_suresi, dag_kat, ort_il_trafik_kat, Toplam_saha_sure, GH_Kapasite) %>% 
+        mutate(Toplam_birim_suresi = round(Toplam_birim_suresi, digits = 1),
+               Toplam_yol_suresi   = round(Toplam_yol_suresi,digits = 1),
+               dag_kat             = round(dag_kat, digits = 2),
+               ort_il_trafik_kat   = round(ort_il_trafik_kat,digits = 2),
+               Toplam_saha_sure    = round(Toplam_saha_sure, digits = 1)) %>% 
+        filter(OrgSubeId %in% input$branch_selection1) 
+      
+      
+      DT::datatable(
+        sube_gh_kapasite_tbl_app,
+        selection = 'none',
+        # style = 'bootstrap',
+        class = "compact stripe",
+        options = list(
+          dom = 't',
+          ordering = FALSE,
+          pageLength = 15,
+          scrollY = '200px')
+      ) %>%
+        DT::formatPercentage("GH_Kapasite", digits = 0) %>%
+        
+        DT::formatStyle(
+          'Toplam_yol_suresi',
+          background = DT::styleColorBar(sube_gh_kapasite_tbl_app$Toplam_yol_suresi, '#ACC2DD'),
+          backgroundSize = '98% 88%',
+          backgroundRepeat = 'no-repeat',
+          backgroundPosition = 'center'
+        ) %>%
+        DT::formatStyle(
+          'Toplam_birim_suresi',
+          background = DT::styleColorBar(sube_gh_kapasite_tbl_app$Toplam_birim_suresi, 'lightblue'),
+          backgroundSize = '98% 88%',
+          backgroundRepeat = 'no-repeat',
+          backgroundPosition = 'center'
+        ) %>% 
+        DT::formatStyle(
+          'Toplam_saha_sure',
+          background = DT::styleColorBar(sube_gh_kapasite_tbl_app$Toplam_saha_sure, 'lightgray'),
+          backgroundSize = '98% 88%',
+          backgroundRepeat = 'no-repeat',
+          backgroundPosition = 'center'
+        )  
+      
+    })
+  
+  
+  risk_rate_shiny_tbl <- DT::datatable(
+    risk_rate_tbl,
+    selection = 'none',
+    # style = 'bootstrap',
+    class = "compact stripe", 
+    options = list(
+      dom = 't',
+      ordering = FALSE,
+      pageLength = 22)
+  ) %>%
+    DT::formatStyle(
+      'riskrate',
+      background = DT::styleColorBar(risk_rate_tbl$riskrate, '#fc273f'),
+      backgroundSize = '98% 88%',
+      backgroundRepeat = 'no-repeat',
+      backgroundPosition = 'center'
+    )
+  
+  output$riskratetbl <- renderDataTable(risk_rate_shiny_tbl)
+                                       
+  
+  
+  
+  
+  
   
   
   
