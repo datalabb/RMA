@@ -201,28 +201,28 @@ min(risk_tbl_rate$newrate)
 #3.0 TS VIZ ----
 
 
-aggregate_risk_tbl <- function(bildirim_loc_tbl_selected, risk = "Asayiş", time_unit = "week") {
+aggregate_risk_tbl <- function(bildirim_loc_tbl_selected, risk = c("Terörist Tehdidi"), time_unit = "week") {
   
   bildirim_loc_tbl_selected_date <- bildirim_loc_tbl_selected %>%
     
-    filter(RiskGroupName == risk) %>% 
+    filter(RiskGroupName %in% risk) %>% 
     group_by(Date) %>%
     summarise(ToplamBildirim = length(SubCategory)) %>%
     ungroup()
   
   risk_tbl <- bildirim_loc_tbl_selected_date %>%
-    left_join(risk_loc_tbl_selected_date , by = "Date") %>%
-    rename(ToplamBildirim = "ToplamBildirim.x",
-           ToplamRisk = "ToplamBildirim.y") %>%
+    left_join(risk_loc_tbl_selected_date, by = "Date") %>%
+    rename(ToplamBildirim = "ToplamBildirim.y",
+           ToplamRisk = "ToplamBildirim.x") %>%
     mutate(RiskOranı = ToplamRisk/ToplamBildirim)
   
   
   risk_tbl_rate <- risk_tbl %>%
-    mutate(Date = floor_date(Date, unit = time_unit)) %>%
+    mutate(Date = floor_date(Date, unit = "month")) %>%
     group_by(Date) %>%
     summarise(OrtRisk = round(mean(RiskOranı), digits = 2)) %>%
     ungroup() %>% 
-    mutate(newrate = ((OrtRisk - min(OrtRisk)) / (max(OrtRisk) - min(OrtRisk)) ) * (10 - 0) + 0) %>%
+    mutate(newrate = round((((OrtRisk - min(OrtRisk)) / (max(OrtRisk) - min(OrtRisk)) ) * (10 - 0) + 0), digits = 1)) %>%
     select(-OrtRisk) %>% 
     mutate(label_text = str_glue("Date: {Date}
                                  Ort. Risk: {newrate}"))
@@ -233,6 +233,7 @@ aggregate_risk_tbl <- function(bildirim_loc_tbl_selected, risk = "Asayiş", time
 ts_data_risk <- aggregate_risk_tbl(bildirim_loc_tbl_selected, risk = "Yangın", time_unit = "day")
 
 ts_data_risk
+
 
 # TS Visualization 
 
@@ -534,7 +535,7 @@ plot(x,log(y), pch=20, col="white", cex=cexes)
 # Average Risk rate for last 3 months
 
 risk_rate_tbl_last3months <-bildirim_loc_tbl_selected %>% 
-  aggregate_risk_tbl(risk = "Hırsızlık", time_unit = "month") %>% 
+  aggregate_risk_tbl(risk = "Terörist Tehdidi", time_unit = "month") %>% 
   filter(difftime(today(), Date, units = "days") <= 120) %>% 
   select(-label_text)
 
@@ -573,5 +574,41 @@ fig <- fig %>%
   layout(margin = list(l=20,r=30))
 
 fig
+
+# Risk rate table for all risks
+
+risk_tablosu <- data.frame(Risk = unique(bildirim_loc_tbl_selected$RiskGroupName))
+risk_tablosu
+
+
+df <- data.frame()
+df
+
+t <- for (i in 1:length(risk_tablosu$Risk)) {
+  
+  all_risk_rates_tbl <- bildirim_loc_tbl_selected %>% 
+    aggregate_risk_tbl(risk = risk_tablosu$Risk[[i]], time_unit = "month") %>% 
+    filter(difftime(today(), Date, units = "days") <= 120) %>% 
+    select(-label_text)
+  
+  avrg_allrisk_rate <- round(mean(all_risk_rates_tbl$newrate),digits = 1)
+
+  output = print(avrg_allrisk_rate)
+  
+  df <- rbind(df, output)
+  
+}
+
+colnames(df)[1]  <- "riskrate"
+
+risk_df <- df %>% head(length(risk_tablosu$Risk))
+risk_df
+
+risk_rate_tbl <- cbind(risk_tablosu,risk_df) %>% 
+  arrange(desc(riskrate))
+risk_rate_tbl
+
+
+
 
 
