@@ -31,6 +31,7 @@ library(shinyWidgets)
 library(highcharter)
 library(fs)
 library(dplyr)
+library(scales)
 
 
 # Core
@@ -218,7 +219,7 @@ aggregate_risk_tbl <- function(bildirim_loc_tbl_selected, risk = c("Terörist Te
   
   
   risk_tbl_rate <- risk_tbl %>%
-    mutate(Date = floor_date(Date, unit = "month")) %>%
+    mutate(Date = floor_date(Date, unit = time_unit)) %>%
     group_by(Date) %>%
     summarise(OrtRisk = round(mean(RiskOranı), digits = 2)) %>%
     ungroup() %>% 
@@ -230,7 +231,7 @@ aggregate_risk_tbl <- function(bildirim_loc_tbl_selected, risk = c("Terörist Te
   return(risk_tbl_rate)
 }
 
-ts_data_risk <- aggregate_risk_tbl(bildirim_loc_tbl_selected, risk = "Yangın", time_unit = "day")
+ts_data_risk <- aggregate_risk_tbl(bildirim_loc_tbl_selected, risk = "Yangın", time_unit = "month")
 
 ts_data_risk
 
@@ -474,7 +475,7 @@ plot_forecast <-function(data) {
 
 bildirim_loc_tbl_selected %>% 
   aggregate_risk_tbl(risk = "Hırsızlık", time_unit = "month") %>% 
-  generate_forecast(length_out = 1, seed = 123) %>% 
+  generate_forecast(length_out = 12, seed = 123) %>% 
   plot_forecast()
 
 
@@ -581,8 +582,8 @@ risk_tablosu <- data.frame(Risk = unique(bildirim_loc_tbl_selected$RiskGroupName
 risk_tablosu
 
 
-df <- data.frame()
-df
+df1 <- data.frame()
+df1
 
 t <- for (i in 1:length(risk_tablosu$Risk)) {
   
@@ -595,20 +596,112 @@ t <- for (i in 1:length(risk_tablosu$Risk)) {
 
   output = print(avrg_allrisk_rate)
   
-  df <- rbind(df, output)
+  df1 <- rbind(df1, output)
   
 }
 
-colnames(df)[1]  <- "riskrate"
+colnames(df1)[1]  <- "riskrate"
 
-risk_df <- df %>% head(length(risk_tablosu$Risk))
+risk_df <- df1 %>% head(length(risk_tablosu$Risk))
 risk_df
 
-risk_rate_tbl <- cbind(risk_tablosu,risk_df) %>% 
-  arrange(desc(riskrate))
+risk_rate_tbl <- cbind(risk_tablosu,risk_df) 
+risk_rate_tbl <- risk_rate_tbl %>% 
+  mutate(riskrate = ifelse(riskrate <= 0, 0.1, riskrate)) %>% 
+  mutate(riskrate = ifelse(is.na(riskrate), 0.1, riskrate))
 risk_rate_tbl
+   
+# Risk Forecast Tibble 
+
+risk_tablosu2 <- data.frame(Risk = unique(bildirim_loc_tbl_selected$RiskGroupName)) %>% 
+  filter(Risk != "Soygun")
+risk_tablosu2
+
+df2 <- data.frame()
+df2
+
+t2 <- for (i in 1:length(risk_tablosu2$Risk)) {
+  
+  risk_forecast_tbl <- bildirim_loc_tbl_selected %>% 
+    aggregate_risk_tbl(risk = risk_tablosu2$Risk[[i]], time_unit = "month") %>% 
+    generate_forecast(length_out = 12, seed = 123) %>% 
+    tail(length_out) %>% 
+    head(3) %>% 
+    select(-label_text, -key)
+  
+  avrg_risk_rate2 <- round(mean(risk_forecast_tbl$newrate),digits = 1)
+  
+  output2 = print(avrg_risk_rate2)
+  
+  df2 <- rbind(df2, output2)
+  
+}
+
+colnames(df2)[1]  <- "forecasted_riskrate"
+
+risk_df2 <- df2 %>% head(length(risk_tablosu2$Risk))
+risk_df2
+
+risk_rate_tbl2 <- cbind(risk_tablosu2,risk_df2) 
+risk_rate_tbl2 <- risk_rate_tbl2 %>% 
+  mutate(forecasted_riskrate = ifelse(forecasted_riskrate <= 0, 0.1, forecasted_riskrate)) %>% 
+  mutate(forecasted_riskrate = ifelse(is.na(forecasted_riskrate), 0.1, forecasted_riskrate))
+
+risk_rate_tbl2
+
+# Past and Future Risk Rates Tibble
+
+average_risk_rates_w_forecast <- risk_rate_tbl %>% 
+  left_join(risk_rate_tbl2, by = "Risk") %>%
+  mutate(Degisim_Oran_Yuzde = round(((forecasted_riskrate - riskrate) / riskrate), digits = 1) ) %>% 
+  arrange(desc(riskrate)) %>% 
+  mutate(forecasted_riskrate = ifelse(is.na(forecasted_riskrate), 0.1, forecasted_riskrate)) %>% 
+  mutate(Degisim_Oran_Yuzde = ifelse(is.na(Degisim_Oran_Yuzde), 0.1, Degisim_Oran_Yuzde)) %>% 
+  mutate(Degisim_Oran_Yuzde = Degisim_Oran_Yuzde *100)
+
+#average_risk_rates_w_forecast$Degisim_Oran = formattable::percent(average_risk_rates_w_forecast$Degisim_Oran)
+
+average_risk_rates_w_forecast
+
+average_risk_rates_w_forecast_func <- function (risk = "Hırsızlık") {
+  
+  average_risk_rates_w_forecast_selected_change <- average_risk_rates_w_forecast %>% 
+    filter(Risk == risk) %>% 
+    select(Degisim_Oran_Yuzde)
+  average_risk_rates_w_forecast_selected_change
+}
+
+average_risk_rates_w_forecast_func("Asayiş")
 
 
+
+average_risk_rates_w_forecast_func_last <- function (risk = "Hırsızlık") {
+  
+  average_risk_rates_w_forecast_selected <- average_risk_rates_w_forecast %>% 
+    filter(Risk == risk) %>% 
+    select(riskrate)
+  average_risk_rates_w_forecast_selected[[1]]
+}
+
+average_risk_rates_w_forecast_func_last(risk = "Asayiş")
+
+
+
+average_risk_rates_w_forecast_func_last <- eventReactive(input$apply, {
+  
+  average_risk_rates_w_forecast_selected_change <- function (risk = "Hırsızlık") {
+    
+    average_risk_rates_w_forecast %>% 
+      filter(Risk == risk) %>% 
+      select(Degisim_Oran_Yuzde)
+  }
+  
+  average_risk_rates_w_forecast_selected(input$risk)
+  
+})
+
+
+str(average_risk_rates_w_forecast_func_last(risk = "Asayiş"))
 
 
 
