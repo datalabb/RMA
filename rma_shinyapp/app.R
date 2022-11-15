@@ -10,6 +10,7 @@
 library(xgboost)
 library(flexdashboard)
 library(shiny)
+library(shinydashboard)
 library(shinythemes)
 library(DT)
 library(readxl)
@@ -19,6 +20,7 @@ library(shinyWidgets)
 library(highcharter)
 library(fs)
 library(dplyr)
+library(scales)
 
 
 # Core
@@ -58,6 +60,34 @@ library(shinyauthr) #devtools::install_github("business-science/shinyauthr)
 
 # bildirim_loc_tbl_selected <- readRDS("../sra/00_Data/bildirim_loc_tbl_selected.rds")
 
+# Functions ---- 
+
+
+# Info Card Function ----
+
+info_card <- function(title, subtitle, value, sub_value,
+                      main_icon = "chart-line", sub_icon = "arrow-up",
+                      bg_color = "default", text_color = "default", sub_text_color = "success") {
+  
+  div(
+    class = "panel panel-default",
+    div(
+      class = str_glue("panel-body bg-{bg_color} text-{text_color}"),
+      p(class = "pull-right", icon(class = "fa-3x", main_icon)),
+      h3(title),
+      h6(subtitle),
+      h1(value),
+      p(
+        class = str_glue("text-{sub_text_color}"),
+        icon(sub_icon),
+        tags$small(sub_value)
+      )
+    )
+  )
+  
+}
+
+if (interactive()) {
 
 # APP ----
 
@@ -180,31 +210,94 @@ ui <- fluidPage(
                tabsetPanel(id="ui_tab",
                            
                            tabPanel("Viz",
+                                    
                                     column(
-                                      width = 8,
-                                      column(
-                                        width = 12,
-                                        plotlyOutput("plot")
+                                      width = 6,
+                                      
+                                      wellPanel(
+
+                                          plotlyOutput("plot"),
+                                          
+                                          div(
+                                            id = "input_buttons",
+                                            actionButton(inputId = "analyze", label = "Analyze", icon = icon("download")),
+                                            actionButton(inputId = "map_add", label = NULL, icon = icon("map")),
+                                            br(),
+                                            br(),
+                                            
+                                            dropdown(
+                                              
+                                              div(
+                                                column(
+                                                  width = 8,
+                                                  uiOutput(outputId = "single_card"),
+                                                  
+                                                  actionBttn(inputId = "info_button1", 
+                                                             #label = "Veri Girişi",
+                                                             style = "minimal", #“simple”, “bordered”, “minimal”, “stretch”, “jelly”, “gradient”, “fill”, “material-circle”, “material-flat”, “pill”, “float”, “unite”  
+                                                             size = "sm",
+                                                             color = "royal",
+                                                             icon = icon("fa-light fa-circle-info")),
+                                                  
+                                                  column(
+                                                    width = 12,
+                                                    id="info1",
+                                                    helpText("- Negative change in risk rate means that the forecasted risk rate is lower than the average risk rate of past 3 months."),
+                                                    helpText("- Positive change means that the forecasted risk rate is higher than the average risk rate of past 3 months.")
+                                                    
+                                                  ) %>% hidden()
+
+                                                ),
+                                                
+                                                column(
+                                                  width = 4,
+                                                  div(
+                                                    class = "panel",
+                                                    div(class = "panel-header", h4(HTML("<b>Analyst Commentary</b>"))),
+                                                    div(
+                                                      class = "panel-body",
+                                                      textOutput(outputId = "analyst_commentary2"),
+                                                      p(HTML("Bu analiz belirli dönem içinde gerçekleşen sonuçlardan oluşan veri seti üzerinden kurulan algoritma ile yapılmıştır. 
+                  Analiz sonucu ortaya çıkan tahmin skoru ve öneriler bir <b>'Karar Destek Aracı'</b> olarak değerlendirilmelidir."))
+                                                    )
+                                                  )
+                                                )
+                                                
+                                              ),
+
+                                              circle = TRUE,
+                                              status = "danger",
+                                              icon = icon("cog"), size = "s",
+                                              width = "1000px", color = "royal", 
+                                              label = "Dynamic Forecast", right = F, 
+                                              animate = T,
+                                              style = "gradient" 
+                                              
+                                            )
+
+                                          )
                                         
                                       ),
                                       
-                                      
-                                      column(
-                                        width = 12,
-                                        leafletOutput(outputId = "mapp")
-                                      )
-                                      
+                                      div(
+                                        id= "map_section",
+                                        wellPanel(
+                                          
+                                          leafletOutput(outputId = "mapp")
+                                          
+                                        )
+                                      ) %>% hidden()
+
                                     ),
-                                    
+ 
                                     column(
-                                      width = 4,
-                                      tags$h4("Son 3 Ay Ortalama Risk Oranı", style="color:white"),
-                                      tags$h6("Risk Oranı için 0-10 arası skala kullanılmıştır", style="color:white"),
+                                      width = 6,
+                                      tags$h4("Average Risk Rate of past 3 months and Prediction for the next 3 months", style="color:white"),
+                                      tags$h6("Risk scale: 0-10", style="color:white"),
                                       dataTableOutput("riskratetbl")
 
                                     )
-                                    
-       
+
                            ),
                            
                            tabPanel("Table",
@@ -214,7 +307,7 @@ ui <- fluidPage(
                                       width = 12,
                                       plotlyOutput("plot2")
                                       
-                                    ),
+                                    )
                                     
                            )
                )
@@ -230,6 +323,23 @@ ui <- fluidPage(
 
 
 server <- function(input, output, session) {
+  
+  
+  # Data entry
+  observeEvent(input$info_button1, {
+    toggle(id = "info1", anim = TRUE)
+  })
+  
+  # Toggle Input Settings ----
+  observeEvent(input$card_add, {
+    toggle(id = "card_section", anim = TRUE)
+  })
+  
+  # Toggle Input Settings ----
+  observeEvent(input$map_add, {
+    toggle(id = "map_section", anim = TRUE)
+  })
+  
   
   
   # Loading modal to keep user out of trouble while map draws...
@@ -386,20 +496,18 @@ server <- function(input, output, session) {
             list(range = c(0, 5), color = "white"),
             list(range = c(5, 7), color = "yellow"),
             list(range = c(7, 8), color = "orange"),
-            list(range = c(8, 10), color = "black")),
-          threshold = list(
-            line = list(color = "red", width = 4),
-            thickness = 0.75,
-            value = 8))) 
+            list(range = c(8, 10), color = "black"))))
+          # threshold = list(
+          #   line = list(color = "red", width = 4),
+          #   thickness = 0.75,
+          #   value = 8))) 
       fig <- fig %>%
         layout(margin = list(l=20,r=30))
       
       }, 
     ignoreNULL = FALSE 
   )
-  
-  
-  
+
   
   output$avrgrisk <- renderPlotly({
     risk_gauge()
@@ -469,60 +577,60 @@ server <- function(input, output, session) {
   # Risk Rate Table
   
   
-  detail_table1_gh <- eventReactive(
-    eventExpr = input$branch_selection1,
-    valueExpr = {
-      
-      sube_gh_kapasite_tbl_app <- sube_gh_kapasite_tbl %>% 
-        select(OrgBolgeId, OrgSubeId, Ay, idari_per, saha_per, Toplam_birim_suresi, Toplam_yol_suresi, dag_kat, ort_il_trafik_kat, Toplam_saha_sure, GH_Kapasite) %>% 
-        mutate(Toplam_birim_suresi = round(Toplam_birim_suresi, digits = 1),
-               Toplam_yol_suresi   = round(Toplam_yol_suresi,digits = 1),
-               dag_kat             = round(dag_kat, digits = 2),
-               ort_il_trafik_kat   = round(ort_il_trafik_kat,digits = 2),
-               Toplam_saha_sure    = round(Toplam_saha_sure, digits = 1)) %>% 
-        filter(OrgSubeId %in% input$branch_selection1) 
-      
-      
-      DT::datatable(
-        sube_gh_kapasite_tbl_app,
-        selection = 'none',
-        # style = 'bootstrap',
-        class = "compact stripe",
-        options = list(
-          dom = 't',
-          ordering = FALSE,
-          pageLength = 15,
-          scrollY = '200px')
-      ) %>%
-        DT::formatPercentage("GH_Kapasite", digits = 0) %>%
-        
-        DT::formatStyle(
-          'Toplam_yol_suresi',
-          background = DT::styleColorBar(sube_gh_kapasite_tbl_app$Toplam_yol_suresi, '#ACC2DD'),
-          backgroundSize = '98% 88%',
-          backgroundRepeat = 'no-repeat',
-          backgroundPosition = 'center'
-        ) %>%
-        DT::formatStyle(
-          'Toplam_birim_suresi',
-          background = DT::styleColorBar(sube_gh_kapasite_tbl_app$Toplam_birim_suresi, 'lightblue'),
-          backgroundSize = '98% 88%',
-          backgroundRepeat = 'no-repeat',
-          backgroundPosition = 'center'
-        ) %>% 
-        DT::formatStyle(
-          'Toplam_saha_sure',
-          background = DT::styleColorBar(sube_gh_kapasite_tbl_app$Toplam_saha_sure, 'lightgray'),
-          backgroundSize = '98% 88%',
-          backgroundRepeat = 'no-repeat',
-          backgroundPosition = 'center'
-        )  
-      
-    })
+  # detail_table1_gh <- eventReactive(
+  #   eventExpr = input$branch_selection1,
+  #   valueExpr = {
+  # 
+  #     sube_gh_kapasite_tbl_app <- sube_gh_kapasite_tbl %>%
+  #       select(OrgBolgeId, OrgSubeId, Ay, idari_per, saha_per, Toplam_birim_suresi, Toplam_yol_suresi, dag_kat, ort_il_trafik_kat, Toplam_saha_sure, GH_Kapasite) %>%
+  #       mutate(Toplam_birim_suresi = round(Toplam_birim_suresi, digits = 1),
+  #              Toplam_yol_suresi   = round(Toplam_yol_suresi,digits = 1),
+  #              dag_kat             = round(dag_kat, digits = 2),
+  #              ort_il_trafik_kat   = round(ort_il_trafik_kat,digits = 2),
+  #              Toplam_saha_sure    = round(Toplam_saha_sure, digits = 1)) %>%
+  #       filter(OrgSubeId %in% input$branch_selection1)
+  # 
+  # 
+  #     DT::datatable(
+  #       sube_gh_kapasite_tbl_app,
+  #       selection = 'none',
+  #       # style = 'bootstrap',
+  #       class = "compact stripe",
+  #       options = list(
+  #         dom = 't',
+  #         ordering = FALSE,
+  #         pageLength = 15,
+  #         scrollY = '200px')
+  #     ) %>%
+  #       DT::formatPercentage("GH_Kapasite", digits = 0) %>%
+  # 
+  #       DT::formatStyle(
+  #         'Toplam_yol_suresi',
+  #         background = DT::styleColorBar(sube_gh_kapasite_tbl_app$Toplam_yol_suresi, '#ACC2DD'),
+  #         backgroundSize = '98% 88%',
+  #         backgroundRepeat = 'no-repeat',
+  #         backgroundPosition = 'center'
+  #       ) %>%
+  #       DT::formatStyle(
+  #         'Toplam_birim_suresi',
+  #         background = DT::styleColorBar(sube_gh_kapasite_tbl_app$Toplam_birim_suresi, 'lightblue'),
+  #         backgroundSize = '98% 88%',
+  #         backgroundRepeat = 'no-repeat',
+  #         backgroundPosition = 'center'
+  #       ) %>%
+  #       DT::formatStyle(
+  #         'Toplam_saha_sure',
+  #         background = DT::styleColorBar(sube_gh_kapasite_tbl_app$Toplam_saha_sure, 'lightgray'),
+  #         backgroundSize = '98% 88%',
+  #         backgroundRepeat = 'no-repeat',
+  #         backgroundPosition = 'center'
+  #       )
+  # 
+  #   })
   
   
   risk_rate_shiny_tbl <- DT::datatable(
-    risk_rate_tbl,
+    average_risk_rates_w_forecast,
     selection = 'none',
     # style = 'bootstrap',
     class = "compact stripe", 
@@ -533,22 +641,98 @@ server <- function(input, output, session) {
   ) %>%
     DT::formatStyle(
       'riskrate',
-      background = DT::styleColorBar(risk_rate_tbl$riskrate, '#fc273f'),
+      #background = DT::styleColorBar(average_risk_rates_w_forecast$riskrate, '#d7d8d6'),
       backgroundSize = '98% 88%',
       backgroundRepeat = 'no-repeat',
       backgroundPosition = 'center'
+    ) %>% 
+    DT::formatStyle(
+      'forecasted_riskrate',
+      #background = DT::styleColorBar(average_risk_rates_w_forecast$forecasted_riskrate, '#d7d8d6'),
+      backgroundSize = '98% 88%',
+      backgroundRepeat = 'no-repeat',
+      backgroundPosition = 'center'
+    ) %>% 
+    DT::formatStyle(
+      'Degisim_Oran_Yuzde',
+      #backgroundColor = styleInterval(c(0), c('red', 'green')),
+      #backgroundSize = '98% 88%',
+      #backgroundRepeat = 'no-repeat', 
+      color = styleInterval(c(0), c('green', 'red')),
+      fontWeight = 'bold',
+      backgroundPosition = 'right' 
     )
   
   output$riskratetbl <- renderDataTable(risk_rate_shiny_tbl)
                                        
   
   
+  ##### Prediction_Section ----
   
+  # Değişim Oranı
   
+  degisim_oran_card <- function (risk = input$risk) {
+    
+    average_risk_rates_w_forecast_selected <- average_risk_rates_w_forecast %>% 
+      filter(Risk == risk) %>% 
+      select(Degisim_Oran_Yuzde)
+    
+    average_risk_rates_w_forecast_selected[[1]]
+  }
+
   
+  # Risk Rate
   
+  risk_rate_card <- function (risk = input$risk) {
+      
+      average_risk_rates_w_forecast_selected <- average_risk_rates_w_forecast %>% 
+        filter(Risk == risk) %>% 
+        select(riskrate)
+    average_risk_rates_w_forecast_selected[[1]]
+    
+    }
+
+
+
+  #
+  prediction_card <- eventReactive(input$apply, {
+    column(
+      width = 10,
+      info_card(
+        title     = h4("Dynamic Forecast"),
+        subtitle = h5("Predicted risk change rate  for the next 3 months"),
+        value     = h3(paste("%", degisim_oran_card(input$risk))),
+        sub_value = h3(risk_rate_card(input$risk)),
+
+        sub_icon  = ifelse(round(degisim_oran_card(input$risk),digits = 1) >= 0.01, "arrow-down", "arrow-up"),
+
+        sub_text_color = ifelse(round(degisim_oran_card(input$risk),digits = 1) <= 0.01 , "success", "danger"), bg_color = "yellow"
+
+      )
+    )
+  })
+
+
+  #
+  output$single_card <- renderUI({
+
+    prediction_card()
+
+  })
   
+  # Valuebox
   
+  # output$vbox <- renderValueBox({
+  #   valueBox(
+  #     "Period",
+  #     average_risk_rates_w_forecast_func_last(risk = input$risk),
+  #     icon = icon("credit-card")
+  #   )
+  # })
+  
+
+  
+}
 }
 
 # Run the application 
