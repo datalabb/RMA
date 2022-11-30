@@ -46,6 +46,7 @@ library(hrbrthemes)
 library(sf)
 ###library(mapview)
 library(leaflet)
+library(leaflet.extras)
 
 # Modeling
 library(timetk)
@@ -125,12 +126,14 @@ ui <- fluidPage(
                
                div(
                  
-                 pickerInput(
+                 prettyRadioButtons(
                    inputId = "risk",
-                   label = "Risk", 
+                   label = h3("Risk"), 
                    choices = unique(bildirim_loc_tbl_selected$RiskGroupName),
-                   selected = "Hırsızlık",
-                   multiple = TRUE
+                   selected = "Hırsızlık", status = "danger",
+                   #shape = c("round", "square", "curve"),
+                   shape = "curve"
+
                  ),
                  
                  radioGroupButtons(
@@ -197,8 +200,17 @@ ui <- fluidPage(
                
                br(),
                br(),
+               p(tags$b("Risk Diameter for Mapping")),
+               sliderInput("diameter", label = NULL, min = 0, 
+                           max = 100, value = 50),
                
-               plotlyOutput("avrgrisk")
+               
+               column(
+                 width = 4,
+                 dataTableOutput('table')
+               )
+               
+               
                
                #plotOutput("datalab")
                
@@ -212,7 +224,12 @@ ui <- fluidPage(
                            tabPanel("Viz",
                                     
                                     column(
-                                      width = 6,
+                                      width = 12,
+                                      infoBoxOutput("ibox")
+                                    ),
+                                    
+                                    column(
+                                      width = 9,
                                       
                                       wellPanel(
 
@@ -257,8 +274,8 @@ ui <- fluidPage(
                                                     div(
                                                       class = "panel-body",
                                                       textOutput(outputId = "analyst_commentary2"),
-                                                      p(HTML("Bu analiz belirli dönem içinde gerçekleşen sonuçlardan oluşan veri seti üzerinden kurulan algoritma ile yapılmıştır. 
-                  Analiz sonucu ortaya çıkan tahmin skoru ve öneriler bir <b>'Karar Destek Aracı'</b> olarak değerlendirilmelidir."))
+                                                      p(HTML("This analysis was made with the algorithm based on the data set consisting of the results recorded within a certain period. 
+                                                             The estimation score and suggestions resulting from the analysis should be considered as a <b>'Decision Support Tool'</b>."))
                                                     )
                                                   )
                                                 )
@@ -283,20 +300,43 @@ ui <- fluidPage(
                                         id= "map_section",
                                         wellPanel(
                                           
-                                          leafletOutput(outputId = "mapp")
+                                         column(
+                                            width = 6,
+                                            tags$h4("Average Risk Rate of past 3 months and Prediction for the next 3 months", style="color:white"),
+                                            tags$h6("Risk scale: 0-10", style="color:white"),
+                                            dataTableOutput("riskratetbl")
+                                            
+                                          )
                                           
                                         )
                                       ) %>% hidden()
 
                                     ),
- 
+                                    
                                     column(
-                                      width = 6,
-                                      tags$h4("Average Risk Rate of past 3 months and Prediction for the next 3 months", style="color:white"),
-                                      tags$h6("Risk scale: 0-10", style="color:white"),
-                                      dataTableOutput("riskratetbl")
-
+                                      width = 3,
+                                      wellPanel(
+                                        plotlyOutput("avrgrisk")
+                                      )
+                                      
+                                    ),
+                                    
+                                    wellPanel(
+                                      column(
+                                        width = 9,
+                                        leafletOutput(outputId = "mapp", width="100%", height="500px")
+                                      ),
+                                      
+  
+                                      column(
+                                        width = 3,
+                                        dataTableOutput('coord_table')
+                                      )
+                                      
                                     )
+                                    
+
+
 
                            ),
                            
@@ -485,7 +525,7 @@ server <- function(input, output, session) {
       fig <- plot_ly(
         domain = list(x = c(0, 1), y = c(0, 1)),
         value = avrg_risk_rate,
-        title = list(text = "Risk Katsayısı"),
+        title = list(text = "Risk Rate"),
         type = "indicator",
         mode = "gauge+number+delta",
         #delta = list(reference = 7),
@@ -559,21 +599,86 @@ server <- function(input, output, session) {
     ignoreNULL = FALSE 
   )
   
+  # Coord. valuebox
+  
+  ## Longtitude
+  
+  coordinate_lng  <- eventReactive(
+    eventExpr = input$mapp_click$lng, 
+    valueExpr = {
+      
+      round(input$mapp_click$lng,2)
+      
+    }, 
+    ignoreNULL = FALSE 
+  )
+  
+  
+  
+  ## Latitude
+  
+  coordinate_lat  <- eventReactive(
+    eventExpr = input$mapp_click$lat, 
+    valueExpr = {
+      
+      round(input$mapp_click$lat,2)
+      
+    }, 
+    ignoreNULL = FALSE 
+  )
+  
+  # Coord Tbl
+  
+  output$coord_table <- DT::renderDataTable({
+    
+    coord_tbl <- data.frame(lng = as.numeric(coordinate_lng()),
+                            lat = as.numeric(coordinate_lat()))
+    
+    DT::datatable(coord_tbl, options = list(paging = F, searching = F, dom = 't' ))
+  })
+  
+
+  
+  # Add Click markers
+  
+  observeEvent(input$mapp_click, {
+    
+    click <- input$mapp_click
+    text<-paste("Latitude ", round(click$lat,2), "Longtitude ", round(click$lng,2))
+    
+    proxy <- leafletProxy("mapp")
+    
+    ## This displays the pin drop circle
+    proxy %>% 
+      clearGroup("new_point") %>%
+      #clearMarkers() %>%
+      #addPopups(input$mapp_click$lng,input$mapp_click$lat) %>%
+      addCircles(click$lng, click$lat, radius=input$diameter*1000, color="black", group = "new_point") %>%
+      addMarkers(lng=click$lng, lat = click$lat, popup = paste0(round(click$lng,2)," ", round(click$lat,2)))
+
+  })
+  
+  # Map 
+  
   output$mapp <- renderLeaflet({
     
-    map_tbl2 <- mapp_tbl()
+    if(is.null(input$mapp_click$lng)) {
+      
+      risk_map_func(input$risk, input$diameter, 36.5, 41.5)
+      
+    } else {
+      
+      risk_map_func(input$risk, input$diameter, as.numeric(input$mapp_click$lng), as.numeric(input$mapp_click$lat))
+      
+    }
     
     
-    birim_mapp <- leaflet() %>% 
-      addTiles() %>% 
-      addCircleMarkers(data = map_tbl2, lng = map_tbl2$Boylam, lat = map_tbl2$Enlem, radius = 2)
-    
-    birim_mapp
   })
   
   leafletOutput(outputId = "mapp")
   
-  
+
+
   # Risk Rate Table
   
   
@@ -720,18 +825,35 @@ server <- function(input, output, session) {
 
   })
   
-  # Valuebox
+  # Infobox
   
-  # output$vbox <- renderValueBox({
-  #   valueBox(
-  #     "Period",
-  #     average_risk_rates_w_forecast_func_last(risk = input$risk),
-  #     icon = icon("credit-card")
-  #   )
-  # })
+  secili_risk_tablosu <- as.tibble(unique(bildirim_loc_tbl_selected$RiskGroupName))
+  secili_risk_tablosu
+
+  secilen_risk  <- eventReactive(
+    eventExpr = input$risk, 
+    valueExpr = {
+      
+      zzz <- secili_risk_tablosu %>% 
+        filter(value %in% input$risk) %>% 
+        paste()
+
+    }, 
+    ignoreNULL = FALSE 
+  )
   
 
+  output$ibox <- renderValueBox({
+    infoBox(
+      # "Risk",
+      h5(secilen_risk(), style="color:red;font-weight: bold")
+      # icon = icon("credit-card")
+    )
+  })
+
+
   
+
 }
 }
 
