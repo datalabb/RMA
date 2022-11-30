@@ -54,8 +54,9 @@ library(hrbrthemes)
 
 # Map
 library(sf)
-###library(mapview)
+library(mapview)
 library(leaflet)
+library(leaflet.extras)
 
 # Modeling
 library(timetk)
@@ -555,7 +556,7 @@ library(plotly)
 fig <- plot_ly(
   domain = list(x = c(0, 1), y = c(0, 1)),
   value = avrg_risk_rate,
-  title = list(text = "Risk Katsayısı"),
+  title = list(text = "Risk Rate"),
   type = "indicator",
   mode = "gauge+number+delta",
   #delta = list(reference = 7),
@@ -703,5 +704,618 @@ average_risk_rates_w_forecast_func_last <- eventReactive(input$apply, {
 
 str(average_risk_rates_w_forecast_func_last(risk = "Asayiş"))
 
+# 
 
+secili_risk_tablosu <- as.tibble(unique(bildirim_loc_tbl_selected$RiskGroupName))
+secili_risk_tablosu
+
+str(secili_risk_tablosu)
+
+paste(secili_risk_tablosu)
+
+
+zzz <- secili_risk_tablosu %>% 
+  filter(value %in% c("Hırsızlık", "Asayiş")) %>% 
+  pull(value) %>% 
+  paste()
+
+
+zzz
+
+
+secilen_risk  <- eventReactive(
+  eventExpr = input$risk, 
+  valueExpr = {
+    
+    zzz
+    
+  }, 
+  ignoreNULL = FALSE 
+)
+
+
+#
+
+
+  data1 <- bildirim_loc_tbl_selected %>%  
+  # select(Proje, Birim, Tarih, RiskGroupName, SubCategory, Category) %>%
+  group_by(Proje, Birim, Tarih, RiskGroupName, SubCategory, Category) %>%
+  summarise(Sub = length(SubCategory)) %>%
+  ungroup()
+
+
+data1
+
+
+data2<- data1 %>%
+  group_by(Proje, Birim, RiskGroupName) %>%
+  summarise(Min = min(Sub),
+            Max = max(Sub)) %>%
+  ungroup()
+
+data2
+
+
+data_combine <- data1 %>% 
+  left_join(data2, by = c("Proje", "Birim","RiskGroupName"))
+
+data_combine
+
+
+
+data4<- data2 %>%
+  inner_join(data3, by = "Birim") %>% #RiskGroupName 'e göre birlestirilir(?)
+  select(-Proje.y , -RiskGroupName.y , -Sub.y , -Minimum.y, -Max, -Min) %>%
+  rename(SubcategorySayısı = "Sub.x")
+
+
+
+
+# Map ----
+
+#Data
+str(bildirim_loc_tbl)
+bildirim_loc_tbl$Enlem <- as.numeric(bildirim_loc_tbl$Enlem)
+bildirim_loc_tbl$Boylam<- as.numeric(bildirim_loc_tbl$Boylam)
+
+
+bildirim_loc_tbl <- bildirim_loc_tbl %>%
+  tail(50000)
+
+#Subset Data
+x <- bildirim_loc_tbl %>%
+  dplyr::select(Bölge, Proje, Birim, Enlem,Boylam) 
+
+
+x
+
+
+#Mapping for all units
+
+
+
+#map_all<- leaflet() %>%
+#  addTiles() %>%
+# addCircleMarkers(data = x, lng = x$Boylam, lat = x$Enlem, radius = 2)
+
+
+
+#Function for distance
+
+
+
+earth.dist <- function (long1, lat1, long2, lat2)
+{
+  rad <- pi/180
+  a1 <- lat1 * rad
+  a2 <- long1 * rad
+  b1 <- lat2 * rad
+  b2 <- long2 * rad
+  dlon <- b2 - a2
+  dlat <- b1 - a1
+  a <- (sin(dlat/2))^2 + cos(a1) * cos(b1) * (sin(dlon/2))^2
+  c <- 2 * atan2(sqrt(a), sqrt(1 - a))
+  R <- 6378.145
+  d <- R * c
+  return(d)
+}
+
+earth.dist
+
+#Filtering and mapping some specific -
+
+
+
+x1 <- x %>%
+  mutate(distance = earth.dist(32.53112,39.98345, x$Boylam, x$Enlem)) %>%
+  filter(distance <= 50)
+x1
+
+x2 <- x %>%
+  mutate(distance = earth.dist(29.45234,38.76534, x$Boylam, x$Enlem)) %>%
+  filter(distance <= 50)
+x2
+
+x3 <- x %>%
+  mutate(distance = earth.dist(35.45234,38.76534, x$Boylam, x$Enlem)) %>%
+  filter(distance <= 50)
+x3
+
+nokta <- data.frame (Boylam  = c(32.53112, 29.45234,35.45234),
+                  Enlem = c(39.98345,38.76534,38.76534)
+                  )
+
+nokta
+
+
+map_filteredx <- leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers(data = bildirim_loc_tbl, lng = bildirim_loc_tbl$Boylam, lat = bildirim_loc_tbl$Enlem, radius = 1) %>%
+  addCircles(
+    lng = nokta$Boylam[[1]],
+    lat = nokta$Enlem[[1]], 
+    radius = 50000,
+    weight = 5,
+    opacity = 0.5, 
+    fill = T, fillColor = "red",
+    fillOpacity = 0.1,
+    # smoothFactor = 16,
+    color = "red") %>% 
+  addCircles(
+    lng = x1$Boylam,
+    lat = x1$Enlem,
+    weight = 5,
+    opacity = 0.5,
+    fill = TRUE,
+    fillOpacity = 0.1,
+    color = "green") %>%
+  addCircles(
+    lng = nokta$Boylam[[2]],
+    lat = nokta$Enlem[[2]], 
+    radius = 50000,
+    weight = 5,
+    opacity = 0.5, 
+    fill = T, fillColor = "red",
+    fillOpacity = 0.1,
+    # smoothFactor = 16,
+    color = "red") %>% 
+  addCircles(
+    lng = x2$Boylam,
+    lat = x2$Enlem,
+    weight = 5,
+    opacity = 0.5,
+    fill = TRUE,
+    fillOpacity = 0.1,
+    color = "green") %>% 
+  addCircles(
+    lng = nokta$Boylam[[3]],
+    lat = nokta$Enlem[[3]], 
+    radius = 50000,
+    weight = 5,
+    opacity = 0.5, 
+    fill = T, fillColor = "red",
+    fillOpacity = 0.1,
+    # smoothFactor = 16,
+    color = "red") %>% 
+  addCircles(
+    lng = x3$Boylam,
+    lat = x3$Enlem,
+    weight = 5,
+    opacity = 0.5,
+    fill = TRUE,
+    fillOpacity = 0.1,
+    color = "green")
+
+
+map_filteredx 
+
+
+birimler_lokasyon_tbl$Enlem <- as.numeric(birimler_lokasyon_tbl$Enlem)
+birimler_lokasyon_tbl$Boylam<- as.numeric(birimler_lokasyon_tbl$Boylam)
+
+birimler_lokasyon_tbl <- birimler_lokasyon_tbl %>% 
+  filter(!is.na(Enlem)) 
+  
+  
+
+y <- birimler_lokasyon_tbl %>% 
+  select(Birim, Enlem, Boylam) %>% 
+  filter(!is.na(Enlem)) 
+y
+
+
+
+y <- y %>%
+  mutate(distance = earth.dist(32.53000,39.98000, Boylam, Enlem)) %>%
+  filter(distance <=250) 
+y 
+
+map_filtered <- leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers(data = birimler_lokasyon_tbl, lng = birimler_lokasyon_tbl$Boylam, lat = birimler_lokasyon_tbl$Enlem, radius =1) %>%
+  addPolygons(
+    lng = y$Boylam,
+    lat = y$Enlem,
+    weight = 5,
+    opacity = 0.5,
+    fill = TRUE,
+    fillOpacity = 0.1,
+    smoothFactor = 1,
+    color = "red")
+
+map_filtered
+
+## Risk Map ----
+
+### Main Table ----
+
+risk_loc_tbl_selected
+str(risk_loc_tbl_selected)
+
+risk_loc_tbl_selected$Enlem <- as.numeric(risk_loc_tbl_selected$Enlem)
+risk_loc_tbl_selected$Boylam<- as.numeric(risk_loc_tbl_selected$Boylam)
+
+birim_risk_tbl <- risk_loc_tbl_selected %>% 
+  group_by(Segment, AltSegment, Bölge, BranchId, Proje, Birim, Enlem, Boylam, RiskGroupName) %>% 
+  summarise(Total_Risk = length(RiskGroupName)) %>% 
+  ungroup()
+
+birim_risk_tbl
+
+
+
+### Map ----
+
+#### Filtered Table / Circles ----
+birim_risk_tbl %>% view()
+
+birim_risk_tbl_selected <- birim_risk_tbl %>% 
+  filter(Proje == "COCA-COLA SATIŞ VE DAĞITIM A.Ş. (M03822)") %>% 
+  filter(RiskGroupName == "Hırsızlık") %>% 
+  arrange(desc(Total_Risk)) %>% 
+  head(3)
+
+birim_risk_tbl_selected
+
+#### Distance ----
+
+dist <- 50
+
+loc1 <- birim_risk_tbl %>%
+  mutate(distance = earth.dist(birim_risk_tbl_selected$Boylam[[1]],birim_risk_tbl_selected$Enlem[[1]], birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+  filter(distance <= dist)
+loc1
+
+loc2 <- birim_risk_tbl %>%
+  mutate(distance = earth.dist(birim_risk_tbl_selected$Boylam[[2]],birim_risk_tbl_selected$Enlem[[2]], birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+  filter(distance <= dist)
+loc2
+
+loc3 <- birim_risk_tbl %>%
+  mutate(distance = earth.dist(birim_risk_tbl_selected$Boylam[[3]],birim_risk_tbl_selected$Enlem[[3]], birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+  filter(distance <= dist)
+loc3
+
+#### Results / Map ----
+
+risk_map <- leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers(data = birim_risk_tbl, lng = birim_risk_tbl$Boylam, lat = birim_risk_tbl$Enlem, radius = 1) %>%
+  #
+  addCircles(
+    lng = birim_risk_tbl_selected$Boylam[[1]],
+    lat = birim_risk_tbl_selected$Enlem[[1]], 
+    radius = 50000,
+    weight = 5,
+    opacity = 0.5, 
+    fill = T, fillColor = "red",
+    fillOpacity = 0.1,
+    # smoothFactor = 16,
+    color = "red") %>% 
+  addCircles(
+    lng = loc1$Boylam,
+    lat = loc1$Enlem,
+    weight = 5,
+    opacity = 0.5,
+    fill = TRUE,
+    fillOpacity = 0.1,
+    color = "green") %>%
+  
+  #
+  addCircles(
+    lng = birim_risk_tbl_selected$Boylam[[2]],
+    lat = birim_risk_tbl_selected$Enlem[[2]], 
+    radius = 50000,
+    weight = 5,
+    opacity = 0.5, 
+    fill = T, fillColor = "red",
+    fillOpacity = 0.1,
+    # smoothFactor = 16,
+    color = "red") %>% 
+  addCircles(
+    lng = loc2$Boylam,
+    lat = loc2$Enlem,
+    weight = 5,
+    opacity = 0.5,
+    fill = TRUE,
+    fillOpacity = 0.1,
+    color = "green") %>% 
+  
+  #
+  addCircles(
+    lng = birim_risk_tbl_selected$Boylam[[3]],
+    lat = birim_risk_tbl_selected$Enlem[[3]], 
+    radius = 50000,
+    weight = 5,
+    opacity = 0.5, 
+    fill = T, fillColor = "red",
+    fillOpacity = 0.1,
+    # smoothFactor = 16,
+    color = "red") %>% 
+  addCircles(
+    lng = loc3$Boylam,
+    lat = loc3$Enlem,
+    weight = 5,
+    opacity = 0.5,
+    fill = TRUE,
+    fillOpacity = 0.1,
+    color = "green")
+
+
+risk_map
+
+
+### Area Based Risk ----
+
+nested_table <-  birim_risk_tbl %>% 
+  filter(RiskGroupName == "Asayiş") %>%
+  #filter(AltSegment == "AVM") %>% 
+  group_by(Birim) %>% 
+  nest() %>% 
+  ungroup() %>% 
+  mutate(nested_id = row_number())
+
+nested_table
+
+
+nested_table_filtered <- nested_table %>% 
+  filter(Birim == "ANKARA FORUM (M03419-0010)") %>% 
+  filter(filter(RiskGroupName == "Hırsızlık"))
+nested_table_filtered
+
+#
+dist <- 100
+
+loc1 <- birim_risk_tbl %>%
+  mutate(distance = earth.dist(birim_risk_tbl_selected$Boylam[[1]],birim_risk_tbl_selected$Enlem[[1]], birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+  filter(distance <= dist)
+loc1
+
+# Risk_Map_Function ----
+
+contenido <- paste(sep = "<br/>",
+                   #paste0("<img src='https://www.r-project.org/logo/Rlogo.png", "' />"),
+                   paste0("<b>Name: </b>", "Frigorífico Anglo"),
+                   paste0("<b>Place: </b>", "Fray Bentos, Uruguay"),
+                   paste0("<a href='https://en.wikipedia.org/wiki/Frigor%C3%ADfico_Anglo_del_Uruguay", "'>Link</a>"))
+
+risk_map_func <- function(maprisk = "Hırsızlık", diameter = 100, selected_lng = 36.2, selected_lat = 29.2){
+  
+  dist <- diameter
+  
+  birim_say <- length(nested_table$Birim)
+  glimpse(birim_say) 
+  
+  df <- data.frame()
+  df
+  
+  x <- for (i in 1:birim_say) {
+    
+    area_risk <- birim_risk_tbl %>% 
+      
+      mutate(distance = earth.dist(nested_table$data[[i]]$Boylam,nested_table$data[[i]]$Enlem, birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+      filter(RiskGroupName == maprisk) %>% 
+      filter(distance <= dist)
+    
+    riskmean <- mean(area_risk$Total_Risk)
+    
+    output = print(riskmean)
+    
+    df <- rbind(df, output)
+    
+  }
+  
+  df
+  names(df)[1] ="avrgrisk"
+  str(df)
+  df %>% head()
+  
+  location_risk_tbl <- bind_cols(nested_table, df) %>% 
+    arrange(desc(avrgrisk)) 
+
+  
+  #location_risk_tbl <- location_risk_tbl[55:59,]
+  
+  #location_risk_tbl
+  
+  #### Arae Based Risk Map ----
+  
+  ##### Area Based Distance ----
+  
+  
+  loca1 <- birim_risk_tbl %>%
+    mutate(distance = earth.dist(location_risk_tbl$data[[1]]$Boylam,location_risk_tbl$data[[1]]$Enlem, birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+    filter(distance <= dist)
+  loca1
+  
+  loca2 <- birim_risk_tbl %>%
+    mutate(distance = earth.dist(location_risk_tbl$data[[2]]$Boylam,location_risk_tbl$data[[2]]$Enlem, birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+    filter(distance <= dist)
+  loca2
+  
+  loca3 <- birim_risk_tbl %>%
+    mutate(distance = earth.dist(location_risk_tbl$data[[3]]$Boylam,location_risk_tbl$data[[3]]$Enlem, birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+    filter(distance <= dist)
+  loca3
+  
+  loca4 <- birim_risk_tbl %>%
+    mutate(distance = earth.dist(location_risk_tbl$data[[4]]$Boylam,location_risk_tbl$data[[4]]$Enlem, birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+    filter(distance <= dist)
+  loca4
+  
+  loca5 <- birim_risk_tbl %>%
+    mutate(distance = earth.dist(location_risk_tbl$data[[5]]$Boylam,location_risk_tbl$data[[5]]$Enlem, birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+    filter(distance <= dist)
+  loca5
+
+  loca6 <- birim_risk_tbl %>%
+    mutate(distance = earth.dist(as.numeric(selected_lng),as.numeric(selected_lat), birim_risk_tbl$Boylam, birim_risk_tbl$Enlem)) %>%
+    filter(distance <= dist)
+  loca6
+
+
+  
+  risk_map <- leaflet() %>%
+    addTiles() %>%
+    addCircleMarkers(data = birim_risk_tbl, lng = birim_risk_tbl$Boylam, lat = birim_risk_tbl$Enlem, radius = 1) %>%
+    addSearchOSM() %>%
+    addReverseSearchOSM() %>% 
+     
+    #
+    addCircles(
+      lng = location_risk_tbl$data[[1]]$Boylam,
+      lat = location_risk_tbl$data[[1]]$Enlem, 
+      radius = dist*1000,
+      weight = 5,
+      opacity = 0.5, 
+      fill = T, fillColor = "red",
+      fillOpacity = 0.1,
+      # smoothFactor = 16,
+      color = "red") %>%
+    addPopups(data = location_risk_tbl$data[[1]], 
+              lng = location_risk_tbl$data[[1]]$Boylam, 
+              lat = location_risk_tbl$data[[1]]$Enlem, 
+              popup=contenido, 
+              options = popupOptions(closeButton = TRUE)) %>%
+    # setView(lng = location_risk_tbl$data[[1]]$Boylam,
+    #         lat = location_risk_tbl$data[[1]]$Enlem,
+    #         zoom=7) %>%
+    addCircles(
+      lng = loca1$Boylam,
+      lat = loca1$Enlem,
+      weight = 5,
+      opacity = 0.5,
+      fill = TRUE,
+      fillOpacity = 0.1,
+      color = "green") %>%
+    
+    #
+    addCircles(
+      lng = location_risk_tbl$data[[2]]$Boylam,
+      lat = location_risk_tbl$data[[2]]$Enlem,
+      radius = dist*1000,
+      weight = 5,
+      opacity = 0.5, 
+      fill = T, fillColor = "red",
+      fillOpacity = 0.1,
+      # smoothFactor = 16,
+      color = "red") %>% 
+    addCircles(
+      lng = loca2$Boylam,
+      lat = loca2$Enlem,
+      weight = 5,
+      opacity = 0.5,
+      fill = TRUE,
+      fillOpacity = 0.1,
+      color = "green") %>% 
+    
+    #
+    addCircles(
+      lng = location_risk_tbl$data[[3]]$Boylam,
+      lat = location_risk_tbl$data[[3]]$Enlem, 
+      radius = dist*1000,
+      weight = 5,
+      opacity = 0.5, 
+      fill = T, fillColor = "red",
+      fillOpacity = 0.1,
+      # smoothFactor = 16,
+      color = "red") %>% 
+    addCircles(
+      lng = loca3$Boylam,
+      lat = loca3$Enlem,
+      weight = 5,
+      opacity = 0.5,
+      fill = TRUE,
+      fillOpacity = 0.1,
+      color = "green") %>%
+    
+    #
+    addCircles(
+      lng = location_risk_tbl$data[[4]]$Boylam,
+      lat = location_risk_tbl$data[[4]]$Enlem, 
+      radius = dist*1000,
+      weight = 5,
+      opacity = 0.5, 
+      fill = T, fillColor = "red",
+      fillOpacity = 0.1,
+      # smoothFactor = 16,
+      color = "red") %>% 
+    addCircles(
+      lng = loca4$Boylam,
+      lat = loca4$Enlem,
+      weight = 5,
+      opacity = 0.5,
+      fill = TRUE,
+      fillOpacity = 0.1,
+      color = "green") %>% 
+    
+    #
+    addCircles(
+      lng = location_risk_tbl$data[[5]]$Boylam,
+      lat = location_risk_tbl$data[[5]]$Enlem, 
+      radius = dist*1000,
+      weight = 5,
+      opacity = 0.5, 
+      fill = T, fillColor = "red",
+      fillOpacity = 0.1,
+      # smoothFactor = 16,
+      color = "red") %>% 
+    addCircles(
+      lng = loca5$Boylam,
+      lat = loca5$Enlem,
+      weight = 5,
+      opacity = 0.5,
+      fill = TRUE,
+      fillOpacity = 0.1,
+      color = "green") %>% 
+    
+    #
+    addCircles(
+      lng = selected_lng,
+      lat = selected_lat,
+      radius = dist*1000,
+      weight = 5,
+      opacity = 0.5,
+      fill = T, fillColor = "black",
+      fillOpacity = 0.1,
+      # smoothFactor = 16,
+      color = "black") %>%
+    addCircles(
+      lng = loca6$Boylam,
+      lat = loca6$Enlem,
+      weight = 5,
+      opacity = 0.5,
+      fill = TRUE,
+      fillOpacity = 0.1,
+      color = "green") 
+
+  
+  risk_map
+}
+
+
+risk_map_func("Hırsızlık", 50)
+
+
+###
 
